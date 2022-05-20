@@ -15,27 +15,119 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-        title: 'Natal Chart',
+        title: 'Astro Seeker',
         home: Scaffold(
             appBar: AppBar(
-              title: const Text('Natal Chart'),
+              title: const Text('Astro Seeker'),
             ),
-            body: BlocProvider(
-              create: (_) => NatalCubit()..loadSampleChartData(),
-              child: Container(
-                  constraints: const BoxConstraints.expand(),
-                  child: InteractiveViewer(
-                      child: BlocBuilder<NatalCubit, NatalState>(
-                    builder: (context, state) {
-                      if (state is NatalStateEmpty) {
-                        return const Text('Not selected yet');
-                      } else if (state is NatalStateError) {
-                        return const Text('ERROR');
-                      }
-                      return NatalChart(state);
-                    },
-                  ))),
+            body: PageView(
+              children: [
+                DefaultTabController(
+                  length: 3,
+                  initialIndex: 0,
+                  child: Column(children: [
+                    const TabBar(labelColor: Colors.black, tabs: [
+                      Tab(text: 'User Info'),
+                      Tab(text: 'Natal Chart'),
+                      Tab(text: 'Aspects')
+                    ]),
+                    Expanded(
+                      child: TabBarView(children: [
+                        const UserForm(),
+                        BlocProvider(
+                          create: (_) => NatalCubit()..loadSampleChartData(),
+                          child: Container(
+                              constraints: const BoxConstraints.expand(),
+                              child: InteractiveViewer(
+                                  child: BlocBuilder<NatalCubit, NatalState>(
+                                builder: (context, state) {
+                                  if (state is NatalStateEmpty) {
+                                    return const Text('Not selected yet');
+                                  } else if (state is NatalStateError) {
+                                    return const Text('ERROR');
+                                  }
+                                  return NatalChart(state);
+                                },
+                              ))),
+                        ),
+                        Container()
+                      ]),
+                    )
+                  ]),
+                )
+              ],
             )));
+  }
+}
+
+class UserForm extends StatefulWidget {
+  const UserForm({Key? key}) : super(key: key);
+
+  @override
+  State<StatefulWidget> createState() {
+    return UserFormState();
+  }
+}
+
+class UserFormState extends State<UserForm> {
+  String? _birthDate;
+  String? _city;
+
+  final _formKey = GlobalKey<FormState>();
+
+  Widget _buildDate() {
+    return TextFormField(
+      decoration: const InputDecoration(labelText: 'Birth Date'),
+      validator: (value) {
+        if (value != null || value!.isEmpty) {
+          return 'Birth date is required';
+        }
+
+        return null;
+      },
+      onSaved: (value) {
+        _birthDate = value;
+      },
+    );
+  }
+
+  Widget _buildCity() {
+    return TextFormField(
+      decoration: const InputDecoration(labelText: 'Birth City'),
+      validator: (value) {
+        if (value != null && value.isEmpty) {
+          return 'Birth city is required';
+        }
+      },
+      onSaved: (value) {
+        _city = value;
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+        margin: const EdgeInsets.all(50),
+        child: Form(
+            key: _formKey,
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  _buildDate(),
+                  _buildCity(),
+                  const SizedBox(height: 100),
+                  ElevatedButton(
+                      onPressed: () {
+                        if (_formKey.currentState == null ||
+                            !_formKey.currentState!.validate()) {
+                          return;
+                        }
+
+                        _formKey.currentState?.save();
+                      },
+                      child: const Text('Download Chart'))
+                ])));
   }
 }
 
@@ -129,7 +221,6 @@ class NatalChartPainter extends CustomPainter {
     midRadius = radius * (1 - spacing - outerWidth);
     innerRadius = radius * (1 - spacing - outerWidth - innerWidth);
 
-    canvas.drawColor(Colors.black, BlendMode.color);
     canvas.drawCircle(center, outerRadius, paint);
     canvas.drawCircle(center, midRadius, paint);
     canvas.drawCircle(center, innerRadius, paint);

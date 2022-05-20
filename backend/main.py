@@ -9,8 +9,14 @@ from flatlib.datetime import Datetime
 from flatlib.geopos import GeoPos
 from flatlib.chart import Chart
 from flask import Flask, jsonify, request
-import logging as log
+import logging as logger
 import ahocorasick
+
+logger.basicConfig(filename="out.log",
+                filemode="w+",
+                level=logger.DEBUG)
+
+log = logger.getLogger('main')
 
 
 def convertObject(o, root_level=True):
@@ -118,7 +124,10 @@ def convertFixedStar(s):
 
 def convertFixedStars(chart):
     def _s(e):
-        return convertFixedStar(chart.getFixedStar(e))
+        try:
+            return convertFixedStar(chart.getFixedStar(e))
+        except:
+            return None
 
     return {s: _s(s) for s in const.LIST_FIXED_STARS}
 
@@ -148,10 +157,9 @@ cities = None
 
 
 def build_cities_dict():
-    log.info(f'Building cities db. cwd:{os.getcwd()}')
+    global automaton, cities
 
-    global cities
-    global automaton
+    log.info(f'Building cities db. cwd:{os.getcwd()}')
 
     path = 'cities.json'
     if not exists(path):
@@ -161,6 +169,9 @@ def build_cities_dict():
     cities = {i['ascii'].lower(): i for i in loaded}
     for i, city_name in enumerate(cities.keys()):
         automaton.add_word(city_name, (i, city_name))
+        log.warn(city_name)
+
+    automaton.make_automaton()
 
     log.info(f'Loaded {len(cities)} cities in DB.')
 
@@ -206,19 +217,20 @@ def city():
         response.status = 'error.Bad Request'
         return response
     global automaton, cities
-    city = request.args.get('city')  # e.g. ist
 
-    if city is None or len(city) < 3:
-        error_response(
-            'city must be provided and at least must be 3 characters')
+    if cities is None:
+        build_cities_dict()
+    prefix = request.args.get('prefix')  # e.g. ist
+
+    if prefix is None or len(prefix) < 3:
+        return error_response('prefix must be provided and at least must be 3 characters')
 
     try:
-        result = [cities[candidate] for candidate in automaton.keys(city)]
+        result = [cities[candidate] for candidate in automaton.keys(prefix)]
         return jsonify(result)
     except Exception as e:
         return error_response('failed with exception', traceback=traceback.format_exc(limit=32))
 
 
 if __name__ == "__main__":
-    build_cities_dict()
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
