@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:astroseeked/natal_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_datetime_picker/flutter_datetime_picker.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 
 import './astrofont.dart';
@@ -73,24 +74,59 @@ class UserForm extends StatefulWidget {
 }
 
 class UserFormState extends State<UserForm> {
-  String? _birthDate;
+  DateTime? _birthDate;
+  TimeOfDay? _birthTime;
   String? _city;
 
   final _formKey = GlobalKey<FormState>();
   final _typeAheadController = TextEditingController();
+  final _dateCtl = TextEditingController();
+  final _timeCtl = TextEditingController();
 
   Widget _buildDate() {
     return TextFormField(
-      decoration: const InputDecoration(labelText: 'Birth Date'),
-      validator: (value) {
-        if (value != null || value!.isEmpty) {
-          return 'Birth date is required';
-        }
+      controller: _dateCtl,
+      decoration: const InputDecoration(labelText: 'Date of Birth'),
+      onTap: () async {
+        DateTime? date = _birthDate ?? DateTime(1990);
+        FocusScope.of(context).requestFocus(FocusNode());
+        date = await showDatePicker(
+            context: context,
+            initialDate: date,
+            firstDate: DateTime(1900),
+            lastDate: DateTime(2022));
 
-        return null;
+        if (date != null) {
+          _dateCtl.text = '${date.day}/${date.month}/${date.year}';
+        }
       },
-      onSaved: (value) {
-        _birthDate = value;
+    );
+    /*return TextButton(
+        onPressed: () {
+          DatePicker.showDatePicker(context,
+              showTitleActions: true,
+              minTime: DateTime(1900, 1, 1),
+              maxTime: DateTime(2022, 1, 1), onConfirm: (date) {
+            _birthDate = date;
+          }, currentTime: _birthDate ?? DateTime.now(), locale: LocaleType.en);
+        },
+        child: Text(
+          _birthDate?.toString() ?? 'show date time picker',
+          style: const TextStyle(color: Colors.blue),
+        ));*/
+  }
+
+  Widget _buildTime() {
+    return TextFormField(
+      controller: _timeCtl,
+      decoration: const InputDecoration(labelText: 'Time of Birth'),
+      onTap: () async {
+        TimeOfDay? time = _birthTime ?? TimeOfDay.now();
+        FocusScope.of(context).requestFocus(FocusNode());
+        time = await showTimePicker(context: context, initialTime: time);
+        if (time != null) {
+          _timeCtl.text = '${time.hour}:${time.minute}';
+        }
       },
     );
   }
@@ -102,7 +138,7 @@ class UserFormState extends State<UserForm> {
           style: DefaultTextStyle.of(context)
               .style
               .copyWith(fontStyle: FontStyle.italic),
-          decoration: const InputDecoration(border: OutlineInputBorder())),
+          decoration: const InputDecoration(labelText: 'Birth City')),
       suggestionsCallback: (pattern) async {
         return await BackendService.getCities(pattern.toLowerCase());
       },
@@ -129,8 +165,9 @@ class UserFormState extends State<UserForm> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
                   _buildDate(),
+                  _buildTime(),
                   _buildCity(),
-                  const SizedBox(height: 100),
+                  const SizedBox(height: 50),
                   ElevatedButton(
                       onPressed: () {
                         if (_formKey.currentState == null ||
