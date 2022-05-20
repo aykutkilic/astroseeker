@@ -1,3 +1,4 @@
+from genericpath import exists
 import os
 import json
 import traceback
@@ -9,6 +10,7 @@ from flatlib.geopos import GeoPos
 from flatlib.chart import Chart
 from flask import Flask, jsonify, request
 import logging as log
+import ahocorasick
 
 
 def convertObject(o, root_level=True):
@@ -141,7 +143,7 @@ def get_chart_data(date, time, gmt, lat, lon):
 
 
 app = Flask(__name__)
-
+automaton = ahocorasick.Automaton()
 cities = None
 
 
@@ -149,9 +151,17 @@ def build_cities_dict():
     log.info(f'Building cities db. cwd:{os.getcwd()}')
 
     global cities
-    with open('cities.txt') as f:
+    global automaton
+
+    path = 'cities.txt'
+    if not exists(path):
+        path = 'backend/' + path
+    with open(path) as f:
         loaded = json.load(f)
-    cities = {i['name']: i for i in loaded}
+    cities = {i['name'].lower(): i for i in loaded}
+    for i, city_name in enumerate(cities.keys()):
+        automaton.add_word(city_name, (i, city_name))
+
     log.info(f'Loaded {len(cities)} cities in DB.')
 
 
@@ -187,9 +197,27 @@ def natal_chart_data():
     except Exception as e:
         return error_response('failed with exception', traceback=traceback.format_exc(limit=32))
 
+
 @app.route("/city")
 def city():
-    pass
+    def error_response(message, **kwargs):
+        response = jsonify({'message': message, **kwargs})
+        response.status_code = 404
+        response.status = 'error.Bad Request'
+        return response
+    global automaton, cities
+    city = request.args.get('city')  # e.g. ist
+
+    if city is None or len(city) < 3:
+        error_response(
+            'city must be provided and at least must be 3 characters')
+
+    try:
+        result = [cities[candidate] for candidate in automaton.keys(city)]
+        return jsonify(result)
+    except Exception as e:
+        return error_response('failed with exception', traceback=traceback.format_exc(limit=32))
+
 
 if __name__ == "__main__":
     build_cities_dict()
