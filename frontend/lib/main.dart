@@ -1,9 +1,12 @@
 import 'dart:math';
 import 'package:astroseeked/natal_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart';
 
 import './astrofont.dart';
 import 'package:flutter/material.dart';
+
+import 'data.dart';
 
 void main() {
   runApp(const MyApp());
@@ -74,6 +77,7 @@ class UserFormState extends State<UserForm> {
   String? _city;
 
   final _formKey = GlobalKey<FormState>();
+  final _typeAheadController = TextEditingController();
 
   Widget _buildDate() {
     return TextFormField(
@@ -92,15 +96,25 @@ class UserFormState extends State<UserForm> {
   }
 
   Widget _buildCity() {
-    return TextFormField(
-      decoration: const InputDecoration(labelText: 'Birth City'),
-      validator: (value) {
-        if (value != null && value.isEmpty) {
-          return 'Birth city is required';
-        }
+    return TypeAheadFormField(
+      textFieldConfiguration: TextFieldConfiguration(
+          controller: _typeAheadController,
+          style: DefaultTextStyle.of(context)
+              .style
+              .copyWith(fontStyle: FontStyle.italic),
+          decoration: const InputDecoration(border: OutlineInputBorder())),
+      suggestionsCallback: (pattern) async {
+        return await BackendService.getCities(pattern.toLowerCase());
       },
-      onSaved: (value) {
-        _city = value;
+      itemBuilder: (context, City city) {
+        return ListTile(
+          title: Text(city.name),
+          subtitle: Text(city.country),
+        );
+      },
+      onSuggestionSelected: (City city) {
+        _city = city.name;
+        _typeAheadController.text = city.name;
       },
     );
   }
