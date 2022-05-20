@@ -1,15 +1,15 @@
 import 'dart:math';
 import 'package:astroseeked/natal_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_datetime_picker/flutter_datetime_picker.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
-
 import './astrofont.dart';
 import 'package:flutter/material.dart';
-
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 import 'data.dart';
 
 void main() {
+  tzdata.initializeTimeZones();
   runApp(const MyApp());
 }
 
@@ -24,43 +24,42 @@ class MyApp extends StatelessWidget {
             appBar: AppBar(
               title: const Text('Astro Seeker'),
             ),
-            body: PageView(
-              children: [
-                DefaultTabController(
-                  length: 3,
-                  initialIndex: 0,
-                  child: Column(children: [
-                    const TabBar(labelColor: Colors.black, tabs: [
-                      Tab(text: 'User Info'),
-                      Tab(text: 'Natal Chart'),
-                      Tab(text: 'Aspects')
-                    ]),
-                    Expanded(
-                      child: TabBarView(children: [
-                        const UserForm(),
-                        BlocProvider(
-                          create: (_) => NatalCubit()..loadSampleChartData(),
-                          child: Container(
-                              constraints: const BoxConstraints.expand(),
-                              child: InteractiveViewer(
-                                  child: BlocBuilder<NatalCubit, NatalState>(
-                                builder: (context, state) {
-                                  if (state is NatalStateEmpty) {
-                                    return const Text('Not selected yet');
-                                  } else if (state is NatalStateError) {
-                                    return const Text('ERROR');
-                                  }
-                                  return NatalChart(state);
-                                },
-                              ))),
-                        ),
-                        Container()
+            body: BlocProvider(
+                create: (_) => NatalCubit()..loadSampleChartData(),
+                child: PageView(
+                  children: [
+                    DefaultTabController(
+                      length: 3,
+                      initialIndex: 0,
+                      child: Column(children: [
+                        const TabBar(labelColor: Colors.black, tabs: [
+                          Tab(text: 'User Info'),
+                          Tab(text: 'Natal Chart'),
+                          Tab(text: 'Aspects')
+                        ]),
+                        Expanded(
+                          child: TabBarView(children: [
+                            const UserForm(),
+                            Container(
+                                constraints: const BoxConstraints.expand(),
+                                child: InteractiveViewer(
+                                    child: BlocBuilder<NatalCubit, NatalState>(
+                                  builder: (context, state) {
+                                    if (state is NatalStateEmpty) {
+                                      return const Text('Not selected yet');
+                                    } else if (state is NatalStateError) {
+                                      return const Text('ERROR');
+                                    }
+                                    return NatalChart(state);
+                                  },
+                                ))),
+                            Container()
+                          ]),
+                        )
                       ]),
                     )
-                  ]),
-                )
-              ],
-            )));
+                  ],
+                ))));
   }
 }
 
@@ -76,7 +75,7 @@ class UserForm extends StatefulWidget {
 class UserFormState extends State<UserForm> {
   DateTime? _birthDate;
   TimeOfDay? _birthTime;
-  String? _city;
+  City? _city;
 
   final _formKey = GlobalKey<FormState>();
   final _typeAheadController = TextEditingController();
@@ -97,7 +96,7 @@ class UserFormState extends State<UserForm> {
 
         if (_birthDate != null) {
           _dateCtl.text =
-              '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}';
+              '${_birthDate!.year}/${_birthDate!.month}/${_birthDate!.day}';
         }
       },
     );
@@ -149,7 +148,15 @@ class UserFormState extends State<UserForm> {
         );
       },
       onSuggestionSelected: (City city) {
-        _typeAheadController.text = city.name;
+        _city = city;
+        _typeAheadController.text = _city!.name;
+      },
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'City must be selected.';
+        }
+
+        return null;
       },
     );
   }
@@ -168,11 +175,22 @@ class UserFormState extends State<UserForm> {
                   _buildCity(),
                   const SizedBox(height: 50),
                   ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (_formKey.currentState == null ||
                             !_formKey.currentState!.validate()) {
                           return;
                         }
+
+                        var timeZone = tz.getLocation(_city!.timeZone);
+
+                        var gmt = '${timeZone.currentTimeZone.abbreviation}:00';
+                        var lat = _city!.lat.toString();
+                        var lon = _city!.lon.toString();
+
+                        context.read<NatalCubit>().fetchChartData(
+                            _dateCtl.text, _timeCtl.text, gmt, lat, lon);
+
+                        DefaultTabController.of(context)?.animateTo(1);
 
                         _formKey.currentState?.save();
                       },

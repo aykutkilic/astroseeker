@@ -45,9 +45,15 @@ class NatalCubit extends Cubit<NatalState> {
     emit(NatalStateLoaded(json.decode(string)));
   }
 
-  void fetchChartData(birthDate, city) async {
-    var uri = Uri.http(
-        'localhost:3000', 'natal', {'birthDate': birthDate, 'city': city});
+  // ../natal?date=1984/01/01&time=22:45&gmt=+03:00&city_lat=41.01&city_lon=28.58
+  Future<void> fetchChartData(birthDate, birthTime, gmt, lat, lon) async {
+    var uri = Uri.https('backend-lnrbdzx7zq-lm.a.run.app', 'natal', {
+      'date': birthDate,
+      'time': birthTime,
+      'gmt': gmt,
+      'city_lat': lat,
+      'city_lon': lon
+    });
 
     var response = await http.get(uri);
     if (response.statusCode == 200) {
