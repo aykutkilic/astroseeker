@@ -88,16 +88,16 @@ class UserFormState extends State<UserForm> {
       controller: _dateCtl,
       decoration: const InputDecoration(labelText: 'Date of Birth'),
       onTap: () async {
-        DateTime? date = _birthDate ?? DateTime(1990);
         FocusScope.of(context).requestFocus(FocusNode());
-        date = await showDatePicker(
+        _birthDate = await showDatePicker(
             context: context,
-            initialDate: date,
+            initialDate: _birthDate ?? DateTime(1990),
             firstDate: DateTime(1900),
             lastDate: DateTime(2022));
 
-        if (date != null) {
-          _dateCtl.text = '${date.day}/${date.month}/${date.year}';
+        if (_birthDate != null) {
+          _dateCtl.text =
+              '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}';
         }
       },
     );
@@ -121,11 +121,11 @@ class UserFormState extends State<UserForm> {
       controller: _timeCtl,
       decoration: const InputDecoration(labelText: 'Time of Birth'),
       onTap: () async {
-        TimeOfDay? time = _birthTime ?? TimeOfDay.now();
         FocusScope.of(context).requestFocus(FocusNode());
-        time = await showTimePicker(context: context, initialTime: time);
-        if (time != null) {
-          _timeCtl.text = '${time.hour}:${time.minute}';
+        _birthTime = await showTimePicker(
+            context: context, initialTime: _birthTime ?? TimeOfDay.now());
+        if (_birthTime != null) {
+          _timeCtl.text = '${_birthTime!.hour}:${_birthTime!.minute}';
         }
       },
     );
@@ -149,7 +149,6 @@ class UserFormState extends State<UserForm> {
         );
       },
       onSuggestionSelected: (City city) {
-        _city = city.name;
         _typeAheadController.text = city.name;
       },
     );
