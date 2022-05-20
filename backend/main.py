@@ -153,12 +153,12 @@ def build_cities_dict():
     global cities
     global automaton
 
-    path = 'cities.txt'
+    path = 'cities.json'
     if not exists(path):
         path = 'backend/' + path
     with open(path) as f:
         loaded = json.load(f)
-    cities = {i['name'].lower(): i for i in loaded}
+    cities = {i['ascii'].lower(): i for i in loaded}
     for i, city_name in enumerate(cities.keys()):
         automaton.add_word(city_name, (i, city_name))
 
