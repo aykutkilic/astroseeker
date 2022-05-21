@@ -4,7 +4,7 @@ const key2letter = {
   'mercury': 'C',
   'venus': 'D',
   'mars': 'E',
-  'jupyter': 'F',
+  'jupiter': 'F',
   'saturn': 'G',
   'uranus': 'H',
   'neptune': 'I',

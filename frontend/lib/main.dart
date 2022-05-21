@@ -38,23 +38,25 @@ class MyApp extends StatelessWidget {
                           Tab(text: 'Aspects')
                         ]),
                         Expanded(
-                          child: TabBarView(children: [
-                            const UserForm(),
-                            Container(
-                                constraints: const BoxConstraints.expand(),
-                                child: InteractiveViewer(
-                                    child: BlocBuilder<NatalCubit, NatalState>(
-                                  builder: (context, state) {
-                                    if (state is NatalStateEmpty) {
-                                      return const Text('Not selected yet');
-                                    } else if (state is NatalStateError) {
-                                      return const Text('ERROR');
-                                    }
-                                    return NatalChart(state);
-                                  },
-                                ))),
-                            Container()
-                          ]),
+                          child: TabBarView(
+                              physics: const NeverScrollableScrollPhysics(),
+                              children: [
+                                const UserForm(),
+                                Container(
+                                    constraints: const BoxConstraints.expand(),
+                                    child: InteractiveViewer(child:
+                                        BlocBuilder<NatalCubit, NatalState>(
+                                      builder: (context, state) {
+                                        if (state is NatalStateEmpty) {
+                                          return const Text('Not selected yet');
+                                        } else if (state is NatalStateError) {
+                                          return const Text('ERROR');
+                                        }
+                                        return NatalChart(state);
+                                      },
+                                    ))),
+                                Container()
+                              ]),
                         )
                       ]),
                     )
@@ -330,11 +332,21 @@ class NatalChartPainter extends CustomPainter {
           color: Colors.black, size: size, p1: p1, p2: p2);
     });
 
-    data.root['objects'].forEach((k, o) {
+    var sortedObjects = data.root['objects'].entries.toList();
+    sortedObjects
+        .sort((a, b) => a.value['lon'].compareTo(b.value['lon']) as int);
+
+    double? symLon;
+
+    sortedObjects.forEach((i) {
+      var k = i.key;
+      var o = i.value;
+
       var lon = o['lon'];
-      var symbolPos = polar(d2r(lon), midRadius * 1.25, center);
+      symLon = symLon == null ? lon : max(symLon! + 10, lon);
+      var symbolPos = polar(d2r(symLon), midRadius * 1.30, center);
       var p1 = polar(d2r(lon), midRadius, center);
-      var p2 = polar(d2r(lon), midRadius * 1.15, center);
+      var p2 = polar(d2r(symLon), midRadius * 1.15, center);
       var size = (k == 'Sun' || k == 'Moon') ? 50.0 : 40.0;
       paintSymbol(canvas, symbolPos, k.toLowerCase(),
           size: size, p1: p1, p2: p2);
@@ -364,6 +376,6 @@ class NatalChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return false;
+    return true;
   }
 }
