@@ -1,4 +1,4 @@
-package com.example.frontend
+package com.aykutkilic.astroseeker
 
 import io.flutter.embedding.android.FlutterActivity
 
