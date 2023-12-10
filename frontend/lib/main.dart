@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:astroseeked/natal_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:touchable/touchable.dart';
 import './astrofont.dart';
 import 'package:flutter/material.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
@@ -14,7 +15,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +67,7 @@ class MyApp extends StatelessWidget {
 }
 
 class UserForm extends StatefulWidget {
-  const UserForm({Key? key}) : super(key: key);
+  const UserForm({super.key});
 
   @override
   State<StatefulWidget> createState() {
@@ -133,34 +134,38 @@ class UserFormState extends State<UserForm> {
   }
 
   Widget _buildCity() {
-    return TypeAheadFormField(
-      textFieldConfiguration: TextFieldConfiguration(
-          controller: _typeAheadController,
-          style: DefaultTextStyle.of(context)
-              .style
-              .copyWith(fontStyle: FontStyle.italic),
-          decoration: const InputDecoration(labelText: 'Birth City')),
-      suggestionsCallback: (pattern) async {
-        return await BackendService.getCities(pattern.toLowerCase());
-      },
-      itemBuilder: (context, City city) {
-        return ListTile(
-          title: Text(city.name),
-          subtitle: Text(city.country),
-        );
-      },
-      onSuggestionSelected: (City city) {
-        _city = city;
-        _typeAheadController.text = _city!.name;
-      },
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'City must be selected.';
-        }
+    return TypeAheadField<City>(
+        suggestionsCallback: (pattern) async {
+          return await BackendService.getCities(pattern.toLowerCase());
+        },
+        itemBuilder: (context, City city) {
+          return ListTile(
+            title: Text(city.name),
+            subtitle: Text(city.country),
+          );
+        },
+        onSelected: (city) {
+          _city = city;
+          _typeAheadController.text = _city!.name;
+        },
+        controller: _typeAheadController,
+        builder: (context, controller, focusNode) {
+          return TextField(
+            controller: controller,
+            focusNode: focusNode,
+            style: DefaultTextStyle.of(context)
+                .style
+                .copyWith(fontStyle: FontStyle.italic),
+            decoration: const InputDecoration(labelText: 'Birth City'),
+            /*validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'City must be selected.';
+            }
 
-        return null;
-      },
-    );
+            return null;
+          }*/
+          );
+        });
   }
 
   @override
@@ -192,7 +197,7 @@ class UserFormState extends State<UserForm> {
                         context.read<NatalCubit>().fetchChartData(
                             _dateCtl.text, _timeCtl.text, gmt, lat, lon);
 
-                        DefaultTabController.of(context)?.animateTo(1);
+                        DefaultTabController.of(context).animateTo(1);
 
                         _formKey.currentState?.save();
                       },
@@ -203,12 +208,13 @@ class UserFormState extends State<UserForm> {
 
 class NatalChart extends StatelessWidget {
   final dynamic data;
-  const NatalChart(this.data, {Key? key}) : super(key: key);
+  const NatalChart(this.data, {super.key});
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-        size: const Size(500, 500), painter: NatalChartPainter(data));
+    return CanvasTouchDetector(
+        builder: (context) => CustomPaint(
+            size: const Size(500, 500), painter: NatalChartPainter(data)));
   }
 }
 
