@@ -212,9 +212,8 @@ class NatalChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CanvasTouchDetector(
-        builder: (context) => CustomPaint(
-            size: const Size(500, 500), painter: NatalChartPainter(data)));
+    return CustomPaint(
+        size: const Size(500, 500), painter: NatalChartPainter(data));
   }
 }
 
