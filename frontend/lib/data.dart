@@ -8,8 +8,9 @@ class BackendService {
     if (query.isEmpty || query.length < 3) {
       return Future.value([]);
     }
-    var url = Uri.https(
-        'backend-lnrbdzx7zq-lm.a.run.app', '/city', {'prefix': query});
+    var url = Uri.https('backend-lnrbdzx7zq-lm.a.run.app', '/city', {
+      'prefix': query,
+    });
 
     var response = await http.get(url);
     List<City> cities = [];
@@ -30,13 +31,14 @@ class City {
   final double lat;
   final double lon;
 
-  City(
-      {required this.ascii,
-      required this.name,
-      required this.country,
-      required this.timeZone,
-      required this.lat,
-      required this.lon});
+  City({
+    required this.ascii,
+    required this.name,
+    required this.country,
+    required this.timeZone,
+    required this.lat,
+    required this.lon,
+  });
 
   factory City.fromJson(Map<String, dynamic> json) {
     return City(
