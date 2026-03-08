@@ -21,8 +21,8 @@ on:
         default: true
 
 env:
-  FLUTTER_VERSION: "3.32.0"
-  FLUTTER_CHANNEL: "stable"
+  FLUTTER_VERSION: "3.42.0-0.4.pre"
+  FLUTTER_CHANNEL: "beta"
 
 jobs:
   # ─────────────────────────────────────────────
