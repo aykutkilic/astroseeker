@@ -11,6 +11,7 @@ import 'package:latlong2/latlong.dart' hide Path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:flutter/gestures.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'natal_cubit.dart';
 import 'astrofont.dart';
@@ -58,6 +59,7 @@ class _MainScreenState extends State<MainScreen> {
   Timer? _mapCollapseTimer;
   int _pickerResetKey = 0;
   bool _timeControlsExpanded = false;
+  int _persistCounter = 0;
 
   @override
   void initState() {
@@ -71,23 +73,74 @@ class _MainScreenState extends State<MainScreen> {
     final prefs = await SharedPreferences.getInstance();
     final lat = prefs.getDouble('lat');
     final lon = prefs.getDouble('lon');
+    final savedTime = prefs.getInt('dateTimeMs');
+    final savedPlaying = prefs.getBool('isPlaying');
+    final savedSpeed = prefs.getInt('playbackSpeed');
     setState(() {
       if (lat != null && lon != null) {
         _selectedLocation = LatLng(lat, lon);
       } else {
         _selectedLocation = const LatLng(41.0115, 28.9833); // Topkapi Palace, Istanbul
       }
+      if (savedTime != null) {
+        _currentDateTime = DateTime.fromMillisecondsSinceEpoch(savedTime, isUtc: false);
+      }
+      if (savedPlaying != null) _isPlaying = savedPlaying;
+      if (savedSpeed != null) _playbackSpeed = savedSpeed;
       _isMapReady = true;
     });
     _fetchChartDataIfNeeded(force: true);
   }
 
   Future<void> _savePersistedData() async {
+    final prefs = await SharedPreferences.getInstance();
     if (_selectedLocation != null) {
-      final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble('lat', _selectedLocation!.latitude);
       await prefs.setDouble('lon', _selectedLocation!.longitude);
     }
+    await prefs.setInt('dateTimeMs', _currentDateTime.millisecondsSinceEpoch);
+    await prefs.setBool('isPlaying', _isPlaying);
+    await prefs.setInt('playbackSpeed', _playbackSpeed);
+  }
+
+  Future<void> _useCurrentLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location services are disabled')),
+        );
+      }
+      return;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Location permission denied')),
+          );
+        }
+        return;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location permission permanently denied. Enable in Settings.')),
+        );
+      }
+      return;
+    }
+
+    final position = await Geolocator.getCurrentPosition();
+    setState(() {
+      _selectedLocation = LatLng(position.latitude, position.longitude);
+    });
+    _savePersistedData();
+    _fetchChartDataIfNeeded(force: true);
   }
 
   void _onMapTap(TapPosition tapPosition, LatLng latlng) {
@@ -104,6 +157,12 @@ class _MainScreenState extends State<MainScreen> {
       setState(() {
         _currentDateTime = _currentDateTime.add(Duration(milliseconds: 16 * _playbackSpeed));
       });
+      // Persist state every ~5 seconds (300 ticks at 16ms)
+      _persistCounter++;
+      if (_persistCounter >= 300) {
+        _persistCounter = 0;
+        _savePersistedData();
+      }
     }
     _fetchChartDataIfNeeded();
   }
@@ -257,8 +316,9 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     // Expanded: full picker
+    final isPhone = _isPhone(context);
     return Container(
-      width: 460,
+      width: isPhone ? MediaQuery.of(context).size.width - 32 : 460,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E).withAlpha(220),
@@ -273,12 +333,20 @@ class _MainScreenState extends State<MainScreen> {
               children: [
                 // Date picker: month / day / year
                 Expanded(
-                  flex: 5,
+                  flex: isPhone ? 4 : 5,
                   child: CupertinoTheme(
-                    data: _cupertinoTheme,
+                    data: _cupertinoTheme.copyWith(
+                      textTheme: _cupertinoTheme.textTheme.copyWith(
+                        dateTimePickerTextStyle: TextStyle(
+                          fontSize: isPhone ? 16 : 20,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
                     child: CupertinoDatePicker(
                       key: ValueKey('d_$_pickerResetKey'),
                       mode: CupertinoDatePickerMode.date,
+                      dateOrder: DatePickerDateOrder.ymd,
                       initialDateTime: _currentDateTime,
                       minimumYear: 1,
                       maximumYear: 3000,
@@ -296,9 +364,16 @@ class _MainScreenState extends State<MainScreen> {
                 const VerticalDivider(width: 1, color: Colors.white24),
                 // Time picker: hour / minute
                 Expanded(
-                  flex: 3,
+                  flex: 2,
                   child: CupertinoTheme(
-                    data: _cupertinoTheme,
+                    data: _cupertinoTheme.copyWith(
+                      textTheme: _cupertinoTheme.textTheme.copyWith(
+                        dateTimePickerTextStyle: TextStyle(
+                          fontSize: isPhone ? 16 : 20,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
                     child: CupertinoDatePicker(
                       key: ValueKey('t_$_pickerResetKey'),
                       mode: CupertinoDatePickerMode.time,
@@ -329,7 +404,10 @@ class _MainScreenState extends State<MainScreen> {
                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                   padding: EdgeInsets.zero,
                   icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
-                  onPressed: () => setState(() => _isPlaying = !_isPlaying),
+                  onPressed: () {
+                    setState(() => _isPlaying = !_isPlaying);
+                    _savePersistedData();
+                  },
                 ),
               ),
               const SizedBox(width: 8),
@@ -342,10 +420,11 @@ class _MainScreenState extends State<MainScreen> {
                 onPressed: () {
                   setState(() {
                     _currentDateTime = DateTime.now();
-                    _isPlaying = false;
+                    _isPlaying = true;
                     _playbackSpeed = 1;
                     _pickerResetKey++;
                   });
+                  _savePersistedData();
                   _fetchChartDataIfNeeded(force: true);
                 },
               ),
@@ -374,13 +453,13 @@ class _MainScreenState extends State<MainScreen> {
               ButtonSegment(value: 100, label: Text('100x')),
               ButtonSegment(value: 1000, label: Text('1Kx')),
               ButtonSegment(value: 10000, label: Text('10Kx')),
-              ButtonSegment(value: 100000, label: Text('100Kx')),
             ],
-            selected: {_playbackSpeed > 100000 ? 100000 : _playbackSpeed},
+            selected: {_playbackSpeed > 10000 ? 10000 : _playbackSpeed},
             onSelectionChanged: (Set<int> newSelection) {
               setState(() {
                 _playbackSpeed = newSelection.first;
               });
+              _savePersistedData();
             },
           ),
           const SizedBox(height: 4),
@@ -389,8 +468,12 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  bool _isPhone(BuildContext context) =>
+      MediaQuery.of(context).size.shortestSide < 600;
+
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return Scaffold(
       body: Stack(
         children: [
@@ -401,7 +484,7 @@ class _MainScreenState extends State<MainScreen> {
                 final size = MediaQuery.of(context).size;
                 const mapW = 400.0;
                 const mapH = 300.0;
-                final mapRect = Rect.fromLTWH(16, size.height - 16 - mapH, mapW, mapH);
+                final mapRect = Rect.fromLTWH(16, size.height - 16 - bottomInset - mapH, mapW, mapH);
                 if (!mapRect.contains(event.position)) {
                   _mapCollapseTimer?.cancel();
                   setState(() => _isMapDragging = false);
@@ -429,10 +512,10 @@ class _MainScreenState extends State<MainScreen> {
             AnimatedPositioned(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOut,
-              bottom: 16,
+              bottom: 16 + bottomInset,
               left: 16,
-              width: _isMapDragging ? 400 : 200,
-              height: _isMapDragging ? 300 : 150,
+              width: _isMapDragging ? 400 : (_isPhone(context) ? 100 : 200),
+              height: _isMapDragging ? 300 : (_isPhone(context) ? 75 : 150),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
@@ -443,7 +526,7 @@ class _MainScreenState extends State<MainScreen> {
                   child: FlutterMap(
                     options: MapOptions(
                       initialCenter: _selectedLocation ?? const LatLng(51.5, -0.1),
-                      initialZoom: 20.0,
+                      initialZoom: 10.0,
                       onPositionChanged: (position, hasGesture) {
                         if (hasGesture) {
                           if (!_isMapDragging) {
@@ -455,13 +538,13 @@ class _MainScreenState extends State<MainScreen> {
                       onMapEvent: (event) {
                         if (event is MapEventMoveEnd || event is MapEventFlingAnimationEnd) {
                           _mapCollapseTimer?.cancel();
-                          _mapCollapseTimer = Timer(const Duration(seconds: 10), () {
+                          _mapCollapseTimer = Timer(const Duration(seconds: 7), () {
                             if (mounted) setState(() => _isMapDragging = false);
                           });
                         }
                       },
                       interactionOptions: const InteractionOptions(
-                        flags: InteractiveFlag.drag | InteractiveFlag.pinchZoom | InteractiveFlag.doubleTapZoom,
+                        flags: InteractiveFlag.drag | InteractiveFlag.pinchZoom | InteractiveFlag.doubleTapZoom | InteractiveFlag.flingAnimation,
                       ),
                     ),
                     children: [
@@ -495,7 +578,22 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
           Positioned(
-            bottom: 16,
+            bottom: (_isMapDragging ? 300 + 20 : (_isPhone(context) ? 75 : 150) + 20) + bottomInset,
+            left: 16,
+            child: IconButton(
+              iconSize: 20,
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.black54,
+                padding: const EdgeInsets.all(6),
+                minimumSize: const Size(32, 32),
+              ),
+              icon: const Icon(Icons.my_location, color: Colors.white70),
+              tooltip: 'Use current location',
+              onPressed: _useCurrentLocation,
+            ),
+          ),
+          Positioned(
+            bottom: 16 + bottomInset,
             right: 16,
             child: _buildTimeControls(),
           ),
@@ -542,11 +640,117 @@ class _MainScreenState extends State<MainScreen> {
             child: const Text('Data Credits'),
           ),
           TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showGeminiSettings();
+            },
+            child: const Text('Gemini AI'),
+          ),
+          TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
           ),
         ],
       ),
+    );
+  }
+
+  void _showGeminiSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentKey = prefs.getString('gemini_api_key') ?? '';
+    final currentModel = prefs.getString('gemini_model') ?? 'gemini-2.0-flash-lite';
+    final keyController = TextEditingController(text: currentKey);
+    String selectedModel = currentModel;
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final stats = GeminiTokenTracker.instance.stats();
+          return AlertDialog(
+            title: const Text('Gemini AI Settings'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: keyController,
+                    decoration: const InputDecoration(
+                      labelText: 'API Key',
+                      hintText: 'AIzaSy...',
+                      isDense: true,
+                    ),
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Model', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                  const SizedBox(height: 4),
+                  DropdownButton<String>(
+                    value: selectedModel,
+                    isExpanded: true,
+                    items: _geminiModels.map((m) => DropdownMenuItem(
+                      value: m,
+                      child: Text(m, style: const TextStyle(fontSize: 13)),
+                    )).toList(),
+                    onChanged: (v) {
+                      if (v != null) setDialogState(() => selectedModel = v);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Token Usage', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                  const SizedBox(height: 4),
+                  _buildTokenTable(stats),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final p = await SharedPreferences.getInstance();
+                  await p.setString('gemini_api_key', keyController.text);
+                  await p.setString('gemini_model', selectedModel);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTokenTable(Map<String, List<int>> stats) {
+    return Table(
+      columnWidths: const {
+        0: FlexColumnWidth(1.2),
+        1: FlexColumnWidth(1),
+        2: FlexColumnWidth(1),
+        3: FlexColumnWidth(1),
+      },
+      children: [
+        const TableRow(children: [
+          Text('Period', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white54)),
+          Text('In', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white54)),
+          Text('Out', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white54)),
+          Text('Total', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white54)),
+        ]),
+        ...stats.entries.map((e) => TableRow(children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Text(e.key, style: const TextStyle(fontSize: 11)),
+          ),
+          Text('${e.value[0]}', style: const TextStyle(fontSize: 11)),
+          Text('${e.value[1]}', style: const TextStyle(fontSize: 11)),
+          Text('${e.value[0] + e.value[1]}', style: const TextStyle(fontSize: 11)),
+        ])),
+      ],
     );
   }
 
@@ -679,16 +883,74 @@ class NatalChartView extends StatefulWidget {
   State<NatalChartView> createState() => _NatalChartViewState();
 }
 
+class GeminiTokenTracker {
+  static final GeminiTokenTracker instance = GeminiTokenTracker._();
+  GeminiTokenTracker._();
+
+  // Each entry: { "ts": millisSinceEpoch, "in": inputTokens, "out": outputTokens }
+  List<Map<String, int>> _entries = [];
+
+  Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList('gemini_token_log') ?? [];
+    _entries = raw.map((s) {
+      final parts = s.split(',');
+      return {'ts': int.parse(parts[0]), 'in': int.parse(parts[1]), 'out': int.parse(parts[2])};
+    }).toList();
+  }
+
+  Future<void> record(int inputTokens, int outputTokens) async {
+    final entry = {'ts': DateTime.now().millisecondsSinceEpoch, 'in': inputTokens, 'out': outputTokens};
+    _entries.add(entry);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('gemini_token_log',
+      _entries.map((e) => '${e['ts']},${e['in']},${e['out']}').toList(),
+    );
+  }
+
+  Map<String, List<int>> stats() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final periods = {
+      'hour': now - 3600000,
+      'day': now - 86400000,
+      'week': now - 604800000,
+      'month': now - 2592000000,
+      'year': now - 31536000000,
+    };
+    final result = <String, List<int>>{};
+    for (final p in periods.entries) {
+      int inTok = 0, outTok = 0;
+      for (final e in _entries) {
+        if (e['ts']! >= p.value) {
+          inTok += e['in']!;
+          outTok += e['out']!;
+        }
+      }
+      result[p.key] = [inTok, outTok];
+    }
+    return result;
+  }
+}
+
+const _geminiModels = [
+  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash',
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
+];
+
 class _NatalChartViewState extends State<NatalChartView> {
   Offset? _hoverPos;
   String? _pinnedKey = 'Asc';
   List<Map<String, dynamic>> _hitZones = [];
   String _geminiApiKey = '';
+  String _geminiModel = 'gemini-2.0-flash-lite';
 
   @override
   void initState() {
     super.initState();
     _loadApiKey();
+    GeminiTokenTracker.instance.load();
     SkyTileManager.instance.addListener(_onSkyTilesUpdated);
     SkyTileManager.instance.ensureLoaded();
   }
@@ -707,10 +969,13 @@ class _NatalChartViewState extends State<NatalChartView> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _geminiApiKey = prefs.getString('gemini_api_key') ?? '';
+      _geminiModel = prefs.getString('gemini_model') ?? 'gemini-2.0-flash-lite';
     });
   }
 
   void _showInterpretation(String key) async {
+    // Reload from prefs in case settings were changed from help screen
+    await _loadApiKey();
     if (_geminiApiKey.isEmpty) {
       final keyController = TextEditingController();
       await showDialog(
@@ -761,11 +1026,20 @@ class _NatalChartViewState extends State<NatalChartView> {
 
     try {
       final model = GenerativeModel(
-        model: 'gemini-2.5-flash', // Using standard flash for broader compatibility and speed
+        model: _geminiModel,
         apiKey: _geminiApiKey,
       );
       final prompt = 'Provide a short, insightful astrological interpretation of the symbol/entity: "$key". Keep it under 3 sentences. Do not use markdown.';
       final response = await model.generateContent([Content.text(prompt)]);
+
+      // Track token usage
+      final usage = response.usageMetadata;
+      if (usage != null) {
+        await GeminiTokenTracker.instance.record(
+          usage.promptTokenCount ?? 0,
+          usage.candidatesTokenCount ?? 0,
+        );
+      }
 
       if (context.mounted) {
         Navigator.pop(context); // close loading
