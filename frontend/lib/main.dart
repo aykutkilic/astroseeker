@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -50,6 +54,10 @@ class _MainScreenState extends State<MainScreen> {
 
   LatLng? _selectedLocation;
   bool _isMapReady = false;
+  bool _isMapDragging = false;
+  Timer? _mapCollapseTimer;
+  int _pickerResetKey = 0;
+  bool _timeControlsExpanded = false;
 
   @override
   void initState() {
@@ -67,7 +75,7 @@ class _MainScreenState extends State<MainScreen> {
       if (lat != null && lon != null) {
         _selectedLocation = LatLng(lat, lon);
       } else {
-        _selectedLocation = const LatLng(51.5074, -0.1278); // Default London
+        _selectedLocation = const LatLng(41.0115, 28.9833); // Topkapi Palace, Istanbul
       }
       _isMapReady = true;
     });
@@ -210,131 +218,173 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _mapCollapseTimer?.cancel();
     super.dispose();
   }
 
-  void _updateTime({int? year, int? month, int? day, int? hour, int? minute, int? second}) {
-    setState(() {
-      _currentDateTime = DateTime(
-        year ?? _currentDateTime.year,
-        month ?? _currentDateTime.month,
-        day ?? _currentDateTime.day,
-        hour ?? _currentDateTime.hour,
-        minute ?? _currentDateTime.minute,
-        second ?? _currentDateTime.second,
-      );
-    });
-  }
+  static const _pickerTextStyle = TextStyle(color: Colors.white, fontSize: 16);
+  static const _cupertinoTheme = CupertinoThemeData(
+    brightness: Brightness.dark,
+    textTheme: CupertinoTextThemeData(dateTimePickerTextStyle: _pickerTextStyle),
+  );
 
-  Widget _buildNumberAdjuster(int value, int padding, Function(int) onChanged) {
-    return Listener(
-      onPointerSignal: (pointerSignal) {
-        if (pointerSignal is PointerScrollEvent) {
-          if (pointerSignal.scrollDelta.dy > 0) {
-            onChanged(value - 1); // Scrolled down
-          } else if (pointerSignal.scrollDelta.dy < 0) {
-            onChanged(value + 1); // Scrolled up
-          }
-        }
-      },
+  Widget _buildTimeControls() {
+    if (!_timeControlsExpanded) {
+      // Collapsed: single-line summary, tap to expand
+      final dt = _currentDateTime;
+      final label = '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}  '
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      return GestureDetector(
+        onTap: () => setState(() => _timeControlsExpanded = true),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E).withAlpha(220),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+              const SizedBox(width: 8),
+              if (_isPlaying)
+                const Icon(Icons.play_arrow, size: 16, color: Colors.blueAccent),
+              Text('${_playbackSpeed}x', style: const TextStyle(fontSize: 10, color: Colors.white54)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Expanded: full picker
+    return Container(
+      width: 460,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E).withAlpha(220),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          InkWell(
-            onTap: () => onChanged(value + 1),
-            child: const Icon(Icons.arrow_drop_up, size: 16),
-          ),
-          Text(value.toString().padLeft(padding, '0'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          InkWell(
-            onTap: () => onChanged(value - 1),
-            child: const Icon(Icons.arrow_drop_down, size: 16),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimeControls() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E).withAlpha(200),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
+          SizedBox(
+            height: 120,
+            child: Row(
               children: [
-                _buildNumberAdjuster(_currentDateTime.year, 4, (val) => _updateTime(year: val)),
-                const Text('-', style: TextStyle(fontSize: 14)),
-                _buildNumberAdjuster(_currentDateTime.month, 2, (val) => _updateTime(month: val)),
-                const Text('-', style: TextStyle(fontSize: 14)),
-                _buildNumberAdjuster(_currentDateTime.day, 2, (val) => _updateTime(day: val)),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.blueAccent),
-                  child: IconButton(
-                    iconSize: 18,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                    padding: EdgeInsets.zero,
-                    icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
-                    onPressed: () => setState(() => _isPlaying = !_isPlaying),
+                // Date picker: month / day / year
+                Expanded(
+                  flex: 5,
+                  child: CupertinoTheme(
+                    data: _cupertinoTheme,
+                    child: CupertinoDatePicker(
+                      key: ValueKey('d_$_pickerResetKey'),
+                      mode: CupertinoDatePickerMode.date,
+                      initialDateTime: _currentDateTime,
+                      minimumYear: 1,
+                      maximumYear: 3000,
+                      onDateTimeChanged: (dt) {
+                        setState(() {
+                          _currentDateTime = DateTime(
+                            dt.year, dt.month, dt.day,
+                            _currentDateTime.hour, _currentDateTime.minute, _currentDateTime.second,
+                          );
+                        });
+                      },
+                    ),
                   ),
                 ),
-                const SizedBox(width: 4),
-                IconButton(
-                  iconSize: 18,
-                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                  padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.restore),
-                  tooltip: 'Back to real time',
-                  onPressed: () {
-                    setState(() {
-                      _currentDateTime = DateTime.now();
-                      _isPlaying = false;
-                      _playbackSpeed = 1;
-                    });
-                    _fetchChartDataIfNeeded(force: true);
-                  },
+                const VerticalDivider(width: 1, color: Colors.white24),
+                // Time picker: hour / minute
+                Expanded(
+                  flex: 3,
+                  child: CupertinoTheme(
+                    data: _cupertinoTheme,
+                    child: CupertinoDatePicker(
+                      key: ValueKey('t_$_pickerResetKey'),
+                      mode: CupertinoDatePickerMode.time,
+                      use24hFormat: true,
+                      initialDateTime: _currentDateTime,
+                      onDateTimeChanged: (dt) {
+                        setState(() {
+                          _currentDateTime = DateTime(
+                            _currentDateTime.year, _currentDateTime.month, _currentDateTime.day,
+                            dt.hour, dt.minute, _currentDateTime.second,
+                          );
+                        });
+                      },
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 8),
-                _buildNumberAdjuster(_currentDateTime.hour, 2, (val) => _updateTime(hour: val)),
-                const Text(':', style: TextStyle(fontSize: 14)),
-                _buildNumberAdjuster(_currentDateTime.minute, 2, (val) => _updateTime(minute: val)),
-                const Text(':', style: TextStyle(fontSize: 14)),
-                _buildNumberAdjuster(_currentDateTime.second, 2, (val) => _updateTime(second: val)),
               ],
             ),
-            const SizedBox(height: 2),
-            SegmentedButton<int>(
-              style: SegmentedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                textStyle: const TextStyle(fontSize: 10),
-                minimumSize: const Size(0, 24),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.blueAccent),
+                child: IconButton(
+                  iconSize: 18,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  padding: EdgeInsets.zero,
+                  icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white),
+                  onPressed: () => setState(() => _isPlaying = !_isPlaying),
+                ),
               ),
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: 1, label: Text('1x')),
-                ButtonSegment(value: 10, label: Text('10x')),
-                ButtonSegment(value: 100, label: Text('100x')),
-                ButtonSegment(value: 1000, label: Text('1Kx')),
-                ButtonSegment(value: 10000, label: Text('10Kx')),
-                ButtonSegment(value: 100000, label: Text('100Kx')),
-              ],
-              selected: {_playbackSpeed > 100000 ? 100000 : _playbackSpeed},
-              onSelectionChanged: (Set<int> newSelection) {
-                setState(() {
-                  _playbackSpeed = newSelection.first;
-                });
-              },
+              const SizedBox(width: 8),
+              IconButton(
+                iconSize: 18,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.restore),
+                tooltip: 'Back to real time',
+                onPressed: () {
+                  setState(() {
+                    _currentDateTime = DateTime.now();
+                    _isPlaying = false;
+                    _playbackSpeed = 1;
+                    _pickerResetKey++;
+                  });
+                  _fetchChartDataIfNeeded(force: true);
+                },
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                iconSize: 18,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.keyboard_arrow_down),
+                tooltip: 'Collapse',
+                onPressed: () => setState(() => _timeControlsExpanded = false),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          SegmentedButton<int>(
+            style: SegmentedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              textStyle: const TextStyle(fontSize: 10),
+              minimumSize: const Size(0, 24),
             ),
-            const SizedBox(height: 2),
-          ],
-        ),
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 1, label: Text('1x')),
+              ButtonSegment(value: 10, label: Text('10x')),
+              ButtonSegment(value: 100, label: Text('100x')),
+              ButtonSegment(value: 1000, label: Text('1Kx')),
+              ButtonSegment(value: 10000, label: Text('10Kx')),
+              ButtonSegment(value: 100000, label: Text('100Kx')),
+            ],
+            selected: {_playbackSpeed > 100000 ? 100000 : _playbackSpeed},
+            onSelectionChanged: (Set<int> newSelection) {
+              setState(() {
+                _playbackSpeed = newSelection.first;
+              });
+            },
+          ),
+          const SizedBox(height: 4),
+        ],
       ),
     );
   }
@@ -342,42 +392,72 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Astro Seeker')),
       body: Stack(
         children: [
-          BlocBuilder<NatalCubit, NatalState>(
-            builder: (context, state) {
-              if (state is NatalStateEmpty) {
-                return const Center(child: CircularProgressIndicator());
-              } else if (state is NatalStateError) {
-                return Center(child: Text(state.errorMsg, style: const TextStyle(color: Colors.red)));
-              } else if (state is NatalStateLoaded) {
-                final interpolatedData = _interpolateData(state.root, state.fetchTime, _currentDateTime);
-                return NatalChartView(data: interpolatedData);
+          Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (event) {
+              if (_isMapDragging) {
+                final size = MediaQuery.of(context).size;
+                const mapW = 400.0;
+                const mapH = 300.0;
+                final mapRect = Rect.fromLTWH(16, size.height - 16 - mapH, mapW, mapH);
+                if (!mapRect.contains(event.position)) {
+                  _mapCollapseTimer?.cancel();
+                  setState(() => _isMapDragging = false);
+                }
               }
-              return const SizedBox();
+              if (_timeControlsExpanded) {
+                setState(() => _timeControlsExpanded = false);
+              }
             },
+            child: BlocBuilder<NatalCubit, NatalState>(
+              builder: (context, state) {
+                if (state is NatalStateEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (state is NatalStateError) {
+                  return Center(child: Text(state.errorMsg, style: const TextStyle(color: Colors.red)));
+                } else if (state is NatalStateLoaded) {
+                  final interpolatedData = _interpolateData(state.root, state.fetchTime, _currentDateTime);
+                  return NatalChartView(data: interpolatedData);
+                }
+                return const SizedBox();
+              },
+            ),
           ),
           if (_isMapReady)
-            Positioned(
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
               bottom: 16,
               left: 16,
-              width: 200,
-              height: 150,
+              width: _isMapDragging ? 400 : 200,
+              height: _isMapDragging ? 300 : 150,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.white24),
+                    border: Border.all(color: _isMapDragging ? Colors.white54 : Colors.white24),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: FlutterMap(
                     options: MapOptions(
                       initialCenter: _selectedLocation ?? const LatLng(51.5, -0.1),
-                      initialZoom: 1.0,
+                      initialZoom: 20.0,
                       onPositionChanged: (position, hasGesture) {
                         if (hasGesture) {
+                          if (!_isMapDragging) {
+                            setState(() => _isMapDragging = true);
+                          }
                           _onMapTap(TapPosition(const Offset(0, 0), const Offset(0, 0)), position.center);
+                        }
+                      },
+                      onMapEvent: (event) {
+                        if (event is MapEventMoveEnd || event is MapEventFlingAnimationEnd) {
+                          _mapCollapseTimer?.cancel();
+                          _mapCollapseTimer = Timer(const Duration(seconds: 10), () {
+                            if (mounted) setState(() => _isMapDragging = false);
+                          });
                         }
                       },
                       interactionOptions: const InteractionOptions(
@@ -419,9 +499,172 @@ class _MainScreenState extends State<MainScreen> {
             right: 16,
             child: _buildTimeControls(),
           ),
+          Positioned(
+            top: 24,
+            right: 8,
+            child: IconButton(
+              icon: const Icon(Icons.help_outline, color: Colors.white38, size: 20),
+              onPressed: _showHelp,
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  void _showHelp() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Astro Seeker'),
+        content: const Text(
+          'Real-time natal chart calculator.\n\n'
+          'Chart\n'
+          '  Tap — show tooltip\n'
+          '  Long press — AI interpretation\n'
+          '  Double tap — fix chart to symbol\n'
+          '  Double tap empty — reset to Asc\n\n'
+          'Desktop: hover = tooltip, left click = info, right click = fix\n\n'
+          'Map\n'
+          '  Drag to select birth location.\n'
+          '  Enlarges while dragging.\n\n'
+          'Time\n'
+          '  Tap the date/time bar to expand.\n'
+          '  Scroll wheels to set date & time.\n'
+          '  Use speed buttons for animation.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showCredits();
+            },
+            child: const Text('Data Credits'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCredits() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Data Credits'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Sky Background\n'
+            'Digitized Sky Survey — STScI/NASA\n'
+            'http://archive.stsci.edu/dss/copyright.html\n'
+            'Colored & Healpixed by CDS.\n'
+            'Based on DSS2-red and DSS2-blue HiPS surveys generated '
+            'from original scanned plates from STScI.\n\n'
+            'The Digitized Sky Surveys were produced at the Space '
+            'Telescope Science Institute under U.S. Government grant '
+            'NAG W-2166. Images based on photographic data from the '
+            'Oschin Schmidt Telescope (Palomar) and UK Schmidt Telescope.\n\n'
+            'POSS-I: California Institute of Technology / National '
+            'Geographic Society.\n'
+            'POSS-II: Caltech / NSF / National Geographic Society / '
+            'Sloan Foundation / Samuel Oschin Foundation / Eastman Kodak.\n'
+            'UK Schmidt: Royal Observatory Edinburgh / Anglo-Australian '
+            'Observatory.\n\n'
+            'Planetary Positions\n'
+            'VSOP87 truncated series (Meeus "Astronomical Algorithms")\n'
+            'Moon: ELP2000 truncated (Meeus Ch. 47)\n\n'
+            'Planets Imagery\n'
+            'NASA & JPL — public domain\n'
+            'http://www.jpl.nasa.gov/images/policy/index.cfm\n\n'
+            'Minor Planets Data\n'
+            'IAU Minor Planet Center\n'
+            'https://www.minorplanetcenter.net/data',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------------------------
+// Sky Tile Manager — downloads DSS sky tiles from CDS HiPS service
+// ----------------------------------------------------------------------
+class SkyTileManager {
+  static final instance = SkyTileManager._();
+  SkyTileManager._();
+
+  final Map<int, ui.Image> tiles = {};
+  bool _loading = false;
+  final List<VoidCallback> _listeners = [];
+
+  void addListener(VoidCallback cb) => _listeners.add(cb);
+  void removeListener(VoidCallback cb) => _listeners.remove(cb);
+  void _notify() {
+    for (final cb in List.of(_listeners)) {
+      cb();
+    }
+  }
+
+  static const _obliquity = 23.4393;
+
+  void ensureLoaded() {
+    if (_loading || tiles.length == 12) return;
+    _loading = true;
+    _loadAll();
+  }
+
+  Future<void> _loadAll() async {
+    for (int i = 0; i < 12; i++) {
+      if (tiles.containsKey(i)) continue;
+      try {
+        tiles[i] = await _fetchTile(i);
+        _notify();
+      } catch (_) {
+        // Skip failed tiles, will retry on next ensureLoaded
+      }
+    }
+    _loading = false;
+  }
+
+  Future<ui.Image> _fetchTile(int signIndex) async {
+    final eclLon = signIndex * 30.0 + 15.0;
+    final eclLonRad = eclLon * pi / 180;
+    final epsRad = _obliquity * pi / 180;
+
+    var ra = atan2(sin(eclLonRad) * cos(epsRad), cos(eclLonRad)) * 180 / pi;
+    if (ra < 0) ra += 360;
+    final dec = asin(sin(epsRad) * sin(eclLonRad)) * 180 / pi;
+
+    final url = 'https://alasky.cds.unistra.fr/hips-image-services/hips2fits'
+        '?hips=CDS%2FP%2FDSS2%2Fcolor'
+        '&width=1024&height=512'
+        '&projection=SIN'
+        '&ra=${ra.toStringAsFixed(4)}'
+        '&dec=${dec.toStringAsFixed(4)}'
+        '&fov=90'
+        '&format=jpg';
+
+    final client = HttpClient();
+    final request = await client.getUrl(Uri.parse(url));
+    final response = await request.close();
+    final bytes = <int>[];
+    await for (final chunk in response) {
+      bytes.addAll(chunk);
+    }
+    client.close();
+
+    final codec = await ui.instantiateImageCodec(Uint8List.fromList(bytes));
+    final frame = await codec.getNextFrame();
+    return frame.image;
   }
 }
 
@@ -446,6 +689,18 @@ class _NatalChartViewState extends State<NatalChartView> {
   void initState() {
     super.initState();
     _loadApiKey();
+    SkyTileManager.instance.addListener(_onSkyTilesUpdated);
+    SkyTileManager.instance.ensureLoaded();
+  }
+
+  @override
+  void dispose() {
+    SkyTileManager.instance.removeListener(_onSkyTilesUpdated);
+    super.dispose();
+  }
+
+  void _onSkyTilesUpdated() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadApiKey() async {
@@ -548,19 +803,23 @@ class _NatalChartViewState extends State<NatalChartView> {
     }
   }
 
-  void _onPointerDown(PointerDownEvent event) {
+  String? _hitTestKey(Offset localPos) {
     for (var zone in _hitZones) {
-      if ((event.localPosition - (zone['pos'] as Offset)).distance < 25) {
-        if (event.buttons == kSecondaryButton) {
-          // Right click pins the chart
-          setState(() {
-            _pinnedKey = zone['key'];
-          });
-        } else if (event.buttons == kPrimaryButton) {
-          // Left click gets AI info
-          _showInterpretation(zone['key']);
-        }
-        break;
+      if ((localPos - (zone['pos'] as Offset)).distance < 25) {
+        return zone['key'] as String;
+      }
+    }
+    return null;
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    // Desktop: right-click pins, left-click shows info
+    if (event.kind == PointerDeviceKind.mouse) {
+      final key = _hitTestKey(event.localPosition);
+      if (event.buttons == kSecondaryButton) {
+        setState(() => _pinnedKey = key ?? 'Asc');
+      } else if (event.buttons == kPrimaryButton && key != null) {
+        _showInterpretation(key);
       }
     }
   }
@@ -572,20 +831,36 @@ class _NatalChartViewState extends State<NatalChartView> {
       child: InteractiveViewer(
         child: Listener(
           onPointerDown: _onPointerDown,
-          child: MouseRegion(
-            onHover: (event) {
-              setState(() { _hoverPos = event.localPosition; });
+          child: GestureDetector(
+            // Mobile: tap = hover (show tooltip), long press = show info, double tap = pin
+            onTapDown: (details) {
+              setState(() { _hoverPos = details.localPosition; });
             },
-            onExit: (event) {
-              setState(() { _hoverPos = null; });
+            onLongPressStart: (details) {
+              final key = _hitTestKey(details.localPosition);
+              if (key != null) _showInterpretation(key);
             },
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: NatalChartPainter(
-                widget.data, 
-                _hoverPos, 
-                _pinnedKey,
-                (zones) => _hitZones = zones,
+            onDoubleTapDown: (details) {
+              final key = _hitTestKey(details.localPosition);
+              setState(() => _pinnedKey = key ?? 'Asc');
+            },
+            onDoubleTap: () {},
+            child: MouseRegion(
+              onHover: (event) {
+                setState(() { _hoverPos = event.localPosition; });
+              },
+              onExit: (event) {
+                setState(() { _hoverPos = null; });
+              },
+              child: CustomPaint(
+                size: Size.infinite,
+                painter: NatalChartPainter(
+                  widget.data,
+                  _hoverPos,
+                  _pinnedKey,
+                  (zones) => _hitZones = zones,
+                  SkyTileManager.instance.tiles,
+                ),
               ),
             ),
           ),
@@ -610,8 +885,9 @@ class NatalChartPainter extends CustomPainter {
   final Offset? hoverPos;
   final String? pinnedKey;
   final Function(List<Map<String, dynamic>>) onHitZonesUpdate;
-  
-  NatalChartPainter(this.data, this.hoverPos, this.pinnedKey, this.onHitZonesUpdate) : super();
+  final Map<int, ui.Image> skyTiles;
+
+  NatalChartPainter(this.data, this.hoverPos, this.pinnedKey, this.onHitZonesUpdate, this.skyTiles) : super();
 
   double d2r(d) {
     return (-d + refAngle + 180) * pi / 180;
@@ -712,15 +988,19 @@ class NatalChartPainter extends CustomPainter {
 
     radius = min(size.width / 2, size.height / 2);
     center = Offset(size.width / 2, size.height / 2);
+
+    outerRadius = radius * (1 - spacing);
+    midRadius = radius * (1 - spacing - outerWidth);
+    innerRadius = radius * (1 - spacing - outerWidth - innerWidth);
+
+    // ── Sky background tiles (full screen, behind everything) ─────────
+    _drawSkyBackground(canvas, size);
+
     var paint =
         Paint()
           ..color = Colors.white54
           ..strokeWidth = 1
           ..style = PaintingStyle.stroke;
-
-    outerRadius = radius * (1 - spacing);
-    midRadius = radius * (1 - spacing - outerWidth);
-    innerRadius = radius * (1 - spacing - outerWidth - innerWidth);
 
     canvas.drawCircle(center, outerRadius, paint);
     canvas.drawCircle(center, midRadius, paint);
@@ -995,10 +1275,46 @@ class NatalChartPainter extends CustomPainter {
     Future.microtask(() => onHitZonesUpdate(hitZones));
   }
 
+  void _drawSkyBackground(Canvas canvas, Size size) {
+    if (skyTiles.isEmpty) return;
+
+    // Total panorama aspect ratio: 12 tiles side by side
+    final firstTile = skyTiles.values.first;
+    final tileW = firstTile.width.toDouble();
+    final tileH = firstTile.height.toDouble();
+    final panoramaAspect = (tileW * 12) / tileH;
+    final screenAspect = size.width / size.height;
+
+    double drawWidth, drawHeight;
+    if (screenAspect > panoramaAspect) {
+      // Screen is wider — fit to width, crop top/bottom
+      drawWidth = size.width;
+      drawHeight = size.width / panoramaAspect;
+    } else {
+      // Screen is taller — fit to height, crop left/right
+      drawHeight = size.height;
+      drawWidth = size.height * panoramaAspect;
+    }
+
+    final offsetX = (size.width - drawWidth) / 2;
+    final offsetY = (size.height - drawHeight) / 2;
+    final tileWidth = drawWidth / 12;
+
+    for (int i = 0; i < 12; i++) {
+      final image = skyTiles[i];
+      if (image == null) continue;
+
+      final dst = Rect.fromLTWH(offsetX + i * tileWidth, offsetY, tileWidth, drawHeight);
+      final src = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+      canvas.drawImageRect(image, src, dst, Paint());
+    }
+  }
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
     return true;
   }
 }
+
 
 // ----------------------------------------------------------------------

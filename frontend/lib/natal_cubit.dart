@@ -1,7 +1,8 @@
+import 'dart:isolate';
 import 'package:bloc/bloc.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:astro_engine/astro_engine.dart';
 
 abstract class NatalState {
   const NatalState();
@@ -38,6 +39,28 @@ class NatalStateError extends NatalState {
   int get hashCode => errorMsg.hashCode;
 }
 
+/// Parameters for the isolate computation.
+class _ChartParams {
+  final DateTime utc;
+  final double lat;
+  final double lon;
+  final int steps;
+  final int stepMinutes;
+
+  _ChartParams(this.utc, this.lat, this.lon, this.steps, this.stepMinutes);
+}
+
+/// Top-level function for isolate execution.
+List<Map<String, dynamic>> _computeChart(_ChartParams params) {
+  return NatalChart.calculateSteps(
+    utc: params.utc,
+    geoLat: params.lat,
+    geoLon: params.lon,
+    steps: params.steps,
+    stepMinutes: params.stepMinutes,
+  );
+}
+
 class NatalCubit extends Cubit<NatalState> {
   NatalCubit() : super(NatalStateEmpty());
 
@@ -46,27 +69,40 @@ class NatalCubit extends Cubit<NatalState> {
     emit(NatalStateLoaded(json.decode(string), DateTime.now()));
   }
 
-  // ../natal?date=1984/01/01&time=22:45&gmt=+03:00&city_lat=41.01&city_lon=28.58&steps=24&step_minutes=60
   Future<void> fetchChartData(DateTime currentDateTime, String birthDate, String birthTime, String gmt, String lat, String lon) async {
-    var uri = Uri.http('127.0.0.1:8080', 'natal', {
-      'date': birthDate,
-      'time': birthTime,
-      'gmt': gmt,
-      'city_lat': lat,
-      'city_lon': lon,
-      'steps': '24',
-      'step_minutes': '60',
-    });
-
     try {
-      var response = await http.get(uri);
-      if (response.statusCode == 200) {
-        emit(NatalStateLoaded(jsonDecode(response.body), currentDateTime));
-      } else {
-        emit(NatalStateError('Can not fetch. Server responded with: ${response.statusCode}'));
-      }
+      // Parse parameters
+      final cityLat = double.parse(lat);
+      final cityLon = double.parse(lon);
+
+      // Parse the date/time and GMT offset to construct UTC DateTime
+      final parts = birthDate.split('/');
+      final timeParts = birthTime.split(':');
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final day = int.parse(parts[2]);
+      final hour = int.parse(timeParts[0]);
+      final minute = int.parse(timeParts[1]);
+
+      // Parse GMT offset (e.g., "+03:00" or "-05:00")
+      final gmtSign = gmt.startsWith('-') ? -1 : 1;
+      final gmtParts = gmt.substring(1).split(':');
+      final gmtHours = int.parse(gmtParts[0]);
+      final gmtMinutes = gmtParts.length > 1 ? int.parse(gmtParts[1]) : 0;
+      final offsetMinutes = gmtSign * (gmtHours * 60 + gmtMinutes);
+
+      // Local time → UTC
+      final localDt = DateTime(year, month, day, hour, minute);
+      final utcDt = localDt.subtract(Duration(minutes: offsetMinutes));
+
+      // Run computation in an isolate to avoid blocking the UI
+      final result = await Isolate.run(
+        () => _computeChart(_ChartParams(utcDt, cityLat, cityLon, 24, 60)),
+      );
+
+      emit(NatalStateLoaded(result, currentDateTime));
     } catch (e) {
-      emit(NatalStateError('Can not fetch. Error: $e'));
+      emit(NatalStateError('Chart calculation error: $e'));
     }
   }
 }
