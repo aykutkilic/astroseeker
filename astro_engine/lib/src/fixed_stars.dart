@@ -74,12 +74,7 @@ Map<String, dynamic> buildFixedStars(double T) {
     final lat = latJ2000;
     final orb = _orbFromMag(mag);
 
-    result[name] = buildFixedStarJson(
-      lon: lon,
-      lat: lat,
-      mag: mag,
-      orb: orb,
-    );
+    result[name] = buildFixedStarJson(lon: lon, lat: lat, mag: mag, orb: orb);
   }
   return result;
 }

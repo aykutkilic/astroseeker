@@ -1,9 +1,18 @@
 /// Zodiac sign utilities.
 
 const List<String> signNames = [
-  'Aries', 'Taurus', 'Gemini', 'Cancer',
-  'Leo', 'Virgo', 'Libra', 'Scorpio',
-  'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces',
+  'Aries',
+  'Taurus',
+  'Gemini',
+  'Cancer',
+  'Leo',
+  'Virgo',
+  'Libra',
+  'Scorpio',
+  'Sagittarius',
+  'Capricorn',
+  'Aquarius',
+  'Pisces',
 ];
 
 /// Get the zodiac sign name for an ecliptic longitude.

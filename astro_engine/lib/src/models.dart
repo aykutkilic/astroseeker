@@ -35,8 +35,9 @@ Map<String, dynamic> buildObjectJson({
   final isDirect = lonspeed > 0.0003;
   final isRetrograde = lonspeed < -0.0003;
   final isStationary = !isDirect && !isRetrograde;
-  final movement =
-      isDirect ? 'Direct' : (isRetrograde ? 'Retrograde' : 'Stationary');
+  final movement = isDirect
+      ? 'Direct'
+      : (isRetrograde ? 'Retrograde' : 'Stationary');
 
   final result = <String, dynamic>{
     'type': rootLevel ? 'Planet' : 'Generic',
@@ -116,8 +117,7 @@ Map<String, dynamic> buildAngleJson({
     final cLon = cantisciaLon(lon);
     // Note: the Python backend wraps antiscia in a list (bug/quirk).
     result['antiscia'] = [buildAngleJson(id: id, lon: aLon, rootLevel: false)];
-    result['cantiscia'] =
-        buildAngleJson(id: id, lon: cLon, rootLevel: false);
+    result['cantiscia'] = buildAngleJson(id: id, lon: cLon, rootLevel: false);
   }
 
   return result;

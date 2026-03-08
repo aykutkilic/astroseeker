@@ -18,7 +18,8 @@ double ascendant(double ramc, double obliquity, double geoLat) {
   final epsRad = obliquity * pi / 180;
   final latRad = geoLat * pi / 180;
 
-  double asc = atan2(
+  double asc =
+      atan2(
         cos(ramcRad),
         -(sin(ramcRad) * cos(epsRad) + tan(latRad) * sin(epsRad)),
       ) *
@@ -34,8 +35,7 @@ double ascendant(double ramc, double obliquity, double geoLat) {
 /// MC formula (RA → ecliptic longitude).
 ///
 /// Returns a list of 12 house cusp longitudes (index 0 = House 1 = Asc).
-List<double> alcabitusHouseCusps(
-    double ramc, double obliquity, double geoLat) {
+List<double> alcabitusHouseCusps(double ramc, double obliquity, double geoLat) {
   final ascLon = ascendant(ramc, obliquity, geoLat);
   final mcLon = mcFromRAMC(ramc, obliquity);
 
@@ -71,9 +71,9 @@ List<double> alcabitusHouseCusps(
   // Opposite cusps (Houses 5-9 mirror Houses 11-3)
   cusps[4] = normalizeDeg(cusps[10] + 180); // House 5 = House 11 + 180°
   cusps[5] = normalizeDeg(cusps[11] + 180); // House 6 = House 12 + 180°
-  cusps[6] = normalizeDeg(ascLon + 180);    // House 7 = Descendant
-  cusps[7] = normalizeDeg(cusps[1] + 180);  // House 8 = House 2 + 180°
-  cusps[8] = normalizeDeg(cusps[2] + 180);  // House 9 = House 3 + 180°
+  cusps[6] = normalizeDeg(ascLon + 180); // House 7 = Descendant
+  cusps[7] = normalizeDeg(cusps[1] + 180); // House 8 = House 2 + 180°
+  cusps[8] = normalizeDeg(cusps[2] + 180); // House 9 = House 3 + 180°
 
   return cusps;
 }
@@ -100,12 +100,14 @@ List<Map<String, dynamic>> buildHouses(List<double> cusps, double ascLon) {
     double nextCusp = cusps[(i + 1) % 12];
     double size = normalizeDeg(nextCusp - cusps[i]);
     bool isAbove = i >= 6;
-    houses.add(buildHouseJson(
-      num: i + 1,
-      lon: cusps[i],
-      size: size,
-      isAboveHorizon: isAbove,
-    ));
+    houses.add(
+      buildHouseJson(
+        num: i + 1,
+        lon: cusps[i],
+        size: size,
+        isAboveHorizon: isAbove,
+      ),
+    );
   }
   return houses;
 }

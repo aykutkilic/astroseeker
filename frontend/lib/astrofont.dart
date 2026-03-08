@@ -40,7 +40,7 @@ const signs = [
   'sagittarius',
   'capricorn',
   'aquarius',
-  'pisces'
+  'pisces',
 ];
 
 const planets = [

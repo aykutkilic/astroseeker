@@ -76,41 +76,65 @@ class NatalChart {
     final objects = <String, dynamic>{};
 
     objects['Sun'] = buildObjectJson(
-      name: 'Sun', lon: sun.lon, lat: sun.lat,
-      lonspeed: sun.lonSpeed, latspeed: sun.latSpeed,
-      ra: sunEq.$1, dec: sunEq.$2,
+      name: 'Sun',
+      lon: sun.lon,
+      lat: sun.lat,
+      lonspeed: sun.lonSpeed,
+      latspeed: sun.latSpeed,
+      ra: sunEq.$1,
+      dec: sunEq.$2,
     );
     objects['Moon'] = buildObjectJson(
-      name: 'Moon', lon: moon.lon, lat: moon.lat,
-      lonspeed: moon.lonSpeed, latspeed: moon.latSpeed,
-      ra: moonEq.$1, dec: moonEq.$2,
+      name: 'Moon',
+      lon: moon.lon,
+      lat: moon.lat,
+      lonspeed: moon.lonSpeed,
+      latspeed: moon.latSpeed,
+      ra: moonEq.$1,
+      dec: moonEq.$2,
     );
 
     for (final entry in planets.entries) {
       final p = entry.value;
       final eq = eclipticToEquatorial(p.lon, p.lat, nut.trueObliquity);
       objects[entry.key] = buildObjectJson(
-        name: entry.key, lon: p.lon, lat: p.lat,
-        lonspeed: p.lonSpeed, latspeed: p.latSpeed,
-        ra: eq.$1, dec: eq.$2,
+        name: entry.key,
+        lon: p.lon,
+        lat: p.lat,
+        lonspeed: p.lonSpeed,
+        latspeed: p.latSpeed,
+        ra: eq.$1,
+        dec: eq.$2,
       );
     }
 
     objects['North Node'] = buildObjectJson(
-      name: 'North Node', lon: northNodeLon, lat: 0,
-      lonspeed: nodeSpeed, latspeed: 0,
+      name: 'North Node',
+      lon: northNodeLon,
+      lat: 0,
+      lonspeed: nodeSpeed,
+      latspeed: 0,
     );
     objects['South Node'] = buildObjectJson(
-      name: 'South Node', lon: southNodeLon, lat: 0,
-      lonspeed: nodeSpeed, latspeed: 0,
+      name: 'South Node',
+      lon: southNodeLon,
+      lat: 0,
+      lonspeed: nodeSpeed,
+      latspeed: 0,
     );
     objects['Syzygy'] = buildObjectJson(
-      name: 'Syzygy', lon: syzygy.lon, lat: syzygy.lat,
-      lonspeed: syzygy.lonSpeed, latspeed: syzygy.latSpeed,
+      name: 'Syzygy',
+      lon: syzygy.lon,
+      lat: syzygy.lat,
+      lonspeed: syzygy.lonSpeed,
+      latspeed: syzygy.latSpeed,
     );
     objects['Pars Fortuna'] = buildObjectJson(
-      name: 'Pars Fortuna', lon: parsLon, lat: 0,
-      lonspeed: 0, latspeed: 0,
+      name: 'Pars Fortuna',
+      lon: parsLon,
+      lat: 0,
+      lonspeed: 0,
+      latspeed: 0,
     );
 
     // ── Fixed Stars ──────────────────────────────────────────────────
@@ -209,9 +233,11 @@ _SyzygyResult _lastSyzygy(double jd, double T, double deltaPsi) {
     if (!first) {
       double prevElong = normalizeDeg(prevMoonLon - prevSunLon);
       // Check for crossing 0° (new moon) or 180° (full moon)
-      bool crossNew = (prevElong > 350 && elong < 10) ||
+      bool crossNew =
+          (prevElong > 350 && elong < 10) ||
           (prevElong > 0 && prevElong < 10 && i > 0);
-      bool crossFull = (prevElong > 170 && prevElong < 180 && elong > 180 && elong < 190) ||
+      bool crossFull =
+          (prevElong > 170 && prevElong < 180 && elong > 180 && elong < 190) ||
           (prevElong < 190 && prevElong > 180 && elong > 170 && elong < 180);
 
       if (crossNew || crossFull) {
@@ -233,5 +259,10 @@ _SyzygyResult _lastSyzygy(double jd, double T, double deltaPsi) {
 
   // Fallback: return current Moon position
   final moonFb = moonPosition(T, deltaPsi);
-  return _SyzygyResult(moonFb.lon, moonFb.lat, moonFb.lonSpeed, moonFb.latSpeed);
+  return _SyzygyResult(
+    moonFb.lon,
+    moonFb.lat,
+    moonFb.lonSpeed,
+    moonFb.latSpeed,
+  );
 }

@@ -7,23 +7,23 @@ import 'dart:math';
 ///
 /// Uses the IAU 1980 nutation theory with principal terms.
 ({double deltaPsi, double deltaEps, double meanObliquity, double trueObliquity})
-    nutation(double T) {
+nutation(double T) {
   // Fundamental arguments (degrees)
   // D = Mean elongation of the Moon from the Sun
-  double D = 297.85036 + 445267.111480 * T - 0.0019142 * T * T +
-      T * T * T / 189474.0;
+  double D =
+      297.85036 + 445267.111480 * T - 0.0019142 * T * T + T * T * T / 189474.0;
   // M = Mean anomaly of the Sun
-  double M = 357.52772 + 35999.050340 * T - 0.0001603 * T * T -
-      T * T * T / 300000.0;
+  double M =
+      357.52772 + 35999.050340 * T - 0.0001603 * T * T - T * T * T / 300000.0;
   // M' = Mean anomaly of the Moon
-  double Mp = 134.96298 + 477198.867398 * T + 0.0086972 * T * T +
-      T * T * T / 56250.0;
+  double Mp =
+      134.96298 + 477198.867398 * T + 0.0086972 * T * T + T * T * T / 56250.0;
   // F = Moon's argument of latitude
-  double F = 93.27191 + 483202.017538 * T - 0.0036825 * T * T +
-      T * T * T / 327270.0;
+  double F =
+      93.27191 + 483202.017538 * T - 0.0036825 * T * T + T * T * T / 327270.0;
   // Ω = Longitude of the ascending node of the Moon's orbit
-  double omega = 125.04452 - 1934.136261 * T + 0.0020708 * T * T +
-      T * T * T / 450000.0;
+  double omega =
+      125.04452 - 1934.136261 * T + 0.0020708 * T * T + T * T * T / 450000.0;
 
   // Convert to radians
   final d = D * pi / 180;
@@ -115,7 +115,8 @@ import 'dart:math';
 
   // Mean obliquity of the ecliptic (Meeus eq. 22.3)
   double U = T / 100.0;
-  double meanObliquity = 23.0 +
+  double meanObliquity =
+      23.0 +
       26.0 / 60.0 +
       21.448 / 3600.0 -
       4680.93 / 3600.0 * U -

@@ -6,7 +6,8 @@ import 'zodiac.dart';
 /// Compute Greenwich Mean Sidereal Time in degrees.
 double gmst(double jd) {
   double T = (jd - 2451545.0) / 36525.0;
-  double theta0 = 280.46061837 +
+  double theta0 =
+      280.46061837 +
       360.98564736629 * (jd - 2451545.0) +
       0.000387933 * T * T -
       T * T * T / 38710000.0;

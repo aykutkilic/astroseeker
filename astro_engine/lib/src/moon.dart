@@ -24,34 +24,39 @@ class MoonPosition {
 MoonPosition moonPosition(double T, double deltaPsi) {
   // Fundamental arguments (degrees)
   // L' = Moon's mean longitude (mean equinox of date)
-  double Lp = 218.3164477 +
+  double Lp =
+      218.3164477 +
       481267.88123421 * T -
       0.0015786 * T * T +
       T * T * T / 538841.0 -
       T * T * T * T / 65194000.0;
 
   // D = Mean elongation of the Moon
-  double D = 297.8501921 +
+  double D =
+      297.8501921 +
       445267.1114034 * T -
       0.0018819 * T * T +
       T * T * T / 545868.0 -
       T * T * T * T / 113065000.0;
 
   // M = Sun's mean anomaly
-  double M = 357.5291092 +
+  double M =
+      357.5291092 +
       35999.0502909 * T -
       0.0001536 * T * T +
       T * T * T / 24490000.0;
 
   // M' = Moon's mean anomaly
-  double Mp = 134.9633964 +
+  double Mp =
+      134.9633964 +
       477198.8675055 * T +
       0.0087414 * T * T +
       T * T * T / 69699.0 -
       T * T * T * T / 14712000.0;
 
   // F = Moon's argument of latitude
-  double F = 93.2720950 +
+  double F =
+      93.2720950 +
       483202.0175233 * T -
       0.0036539 * T * T -
       T * T * T / 3526000.0 +
@@ -100,7 +105,8 @@ MoonPosition moonPosition(double T, double deltaPsi) {
     sumB += coeff * sin(arg);
   }
 
-  sumB += -2235 * sin(Lp * dr) +
+  sumB +=
+      -2235 * sin(Lp * dr) +
       382 * sin(A3r) +
       175 * sin((A1 - F) * dr) +
       175 * sin((A1 + F) * dr) +
@@ -141,26 +147,31 @@ MoonPosition moonPosition(double T, double deltaPsi) {
 }
 
 (double, double) _rawMoonLonLat(double T, double deltaPsi) {
-  double Lp = 218.3164477 +
+  double Lp =
+      218.3164477 +
       481267.88123421 * T -
       0.0015786 * T * T +
       T * T * T / 538841.0 -
       T * T * T * T / 65194000.0;
-  double D = 297.8501921 +
+  double D =
+      297.8501921 +
       445267.1114034 * T -
       0.0018819 * T * T +
       T * T * T / 545868.0 -
       T * T * T * T / 113065000.0;
-  double M = 357.5291092 +
+  double M =
+      357.5291092 +
       35999.0502909 * T -
       0.0001536 * T * T +
       T * T * T / 24490000.0;
-  double Mp = 134.9633964 +
+  double Mp =
+      134.9633964 +
       477198.8675055 * T +
       0.0087414 * T * T +
       T * T * T / 69699.0 -
       T * T * T * T / 14712000.0;
-  double F = 93.2720950 +
+  double F =
+      93.2720950 +
       483202.0175233 * T -
       0.0036539 * T * T -
       T * T * T / 3526000.0 +
@@ -181,9 +192,7 @@ MoonPosition moonPosition(double T, double deltaPsi) {
     if (mAbs == 2) coeff *= E2;
     sumL += coeff * sin(arg);
   }
-  sumL += 3958 * sin(A1 * dr) +
-      1962 * sin((Lp - F) * dr) +
-      318 * sin(A2 * dr);
+  sumL += 3958 * sin(A1 * dr) + 1962 * sin((Lp - F) * dr) + 318 * sin(A2 * dr);
 
   double sumB = 0;
   for (final t in _latTerms) {
@@ -195,17 +204,15 @@ MoonPosition moonPosition(double T, double deltaPsi) {
     sumB += coeff * sin(arg);
   }
   double A3 = 313.45 + 481266.484 * T;
-  sumB += -2235 * sin(Lp * dr) +
+  sumB +=
+      -2235 * sin(Lp * dr) +
       382 * sin(A3 * dr) +
       175 * sin((A1 - F) * dr) +
       175 * sin((A1 + F) * dr) +
       127 * sin((Lp - Mp) * dr) -
       115 * sin((Lp + Mp) * dr);
 
-  return (
-    normalizeDeg(Lp + sumL / 1000000.0 + deltaPsi),
-    sumB / 1000000.0,
-  );
+  return (normalizeDeg(Lp + sumL / 1000000.0 + deltaPsi), sumB / 1000000.0);
 }
 
 // ── Longitude periodic terms (Meeus Table 47.A) ─────────────────────

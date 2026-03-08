@@ -4,7 +4,8 @@
 double dateTimeToJD(DateTime dt) {
   int y = dt.year;
   int m = dt.month;
-  double d = dt.day +
+  double d =
+      dt.day +
       dt.hour / 24.0 +
       dt.minute / 1440.0 +
       dt.second / 86400.0 +

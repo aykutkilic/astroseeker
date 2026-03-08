@@ -8,7 +8,10 @@ import 'dart:math';
 /// [epsilon] = obliquity of the ecliptic (degrees)
 /// Returns (rightAscension, declination) in degrees.
 (double ra, double dec) eclipticToEquatorial(
-    double lambda, double beta, double epsilon) {
+  double lambda,
+  double beta,
+  double epsilon,
+) {
   final l = lambda * pi / 180;
   final b = beta * pi / 180;
   final e = epsilon * pi / 180;
@@ -32,7 +35,10 @@ import 'dart:math';
 /// Convert equatorial coordinates to ecliptic.
 /// Returns (longitude, latitude) in degrees.
 (double lon, double lat) equatorialToEcliptic(
-    double ra, double dec, double epsilon) {
+  double ra,
+  double dec,
+  double epsilon,
+) {
   final a = ra * pi / 180;
   final d = dec * pi / 180;
   final e = epsilon * pi / 180;

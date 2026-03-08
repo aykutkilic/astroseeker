@@ -18,7 +18,9 @@ class NatalStateLoaded extends NatalState {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is NatalStateLoaded && other.root == root && other.fetchTime == fetchTime;
+    return other is NatalStateLoaded &&
+        other.root == root &&
+        other.fetchTime == fetchTime;
   }
 
   @override
@@ -69,7 +71,14 @@ class NatalCubit extends Cubit<NatalState> {
     emit(NatalStateLoaded(json.decode(string), DateTime.now()));
   }
 
-  Future<void> fetchChartData(DateTime currentDateTime, String birthDate, String birthTime, String gmt, String lat, String lon) async {
+  Future<void> fetchChartData(
+    DateTime currentDateTime,
+    String birthDate,
+    String birthTime,
+    String gmt,
+    String lat,
+    String lon,
+  ) async {
     try {
       // Parse parameters
       final cityLat = double.parse(lat);
