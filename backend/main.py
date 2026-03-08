@@ -24,6 +24,8 @@ def convertObject(o, root_level=True):
         'type': o.type,
         'lat': o.lat,
         'lon': o.lon,
+        'ra': o.eqCoords()[0] if hasattr(o, 'eqCoords') else 0,
+        'dec': o.eqCoords()[1] if hasattr(o, 'eqCoords') else 0,
         'sign': o.sign,
         'signlon': o.signlon,
         'latspeed': o.latspeed,
@@ -132,6 +134,8 @@ def convertFixedStars(chart):
     return {s: _s(s) for s in const.LIST_FIXED_STARS}
 
 
+from datetime import datetime as std_datetime, timedelta
+
 def get_chart_data(date, time, gmt, lat, lon):
     chart = Chart(Datetime(date, time, gmt), GeoPos(lat, lon))
     result = {
@@ -148,7 +152,7 @@ def get_chart_data(date, time, gmt, lat, lon):
         'angles': convertAngles(chart),
         'fixedStars': convertFixedStars(chart)
     }
-    return json.dumps(result, indent=4)
+    return result
 
 
 app = Flask(__name__)
@@ -190,6 +194,9 @@ def natal_chart_data():
     gmt = request.args.get('gmt')  # e.g. '+03:00'
     city_lat = request.args.get('city_lat')  # e.g. 41.01
     city_lon = request.args.get('city_lon')  # e.g. 28.58
+    steps_str = request.args.get('steps')
+    step_minutes_str = request.args.get('step_minutes')
+
     if date is None:
         return error_response('date must be provided. e.g. 1984/01/01')
     if time is None:
@@ -204,7 +211,21 @@ def natal_chart_data():
     try:
         city_lat = float(city_lat)
         city_lon = float(city_lon)
-        return get_chart_data(date, time, gmt, city_lat, city_lon)
+        
+        if steps_str and step_minutes_str:
+            steps = int(steps_str)
+            step_minutes = int(step_minutes_str)
+            dt_str = f"{date} {time}"
+            dt_obj = std_datetime.strptime(dt_str, "%Y/%m/%d %H:%M")
+            results = []
+            for _ in range(steps):
+                d_str = dt_obj.strftime("%Y/%m/%d")
+                t_str = dt_obj.strftime("%H:%M")
+                results.append(get_chart_data(d_str, t_str, gmt, city_lat, city_lon))
+                dt_obj += timedelta(minutes=step_minutes)
+            return json.dumps(results, indent=4)
+        else:
+            return json.dumps(get_chart_data(date, time, gmt, city_lat, city_lon), indent=4)
     except Exception as e:
         return error_response('failed with exception', traceback=traceback.format_exc(limit=32))
 

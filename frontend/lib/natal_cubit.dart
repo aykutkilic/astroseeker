@@ -11,16 +11,17 @@ class NatalStateEmpty extends NatalState {}
 
 class NatalStateLoaded extends NatalState {
   final dynamic root;
-  NatalStateLoaded(this.root) : super();
+  final DateTime fetchTime;
+  NatalStateLoaded(this.root, this.fetchTime) : super();
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is NatalStateLoaded && other.root == root;
+    return other is NatalStateLoaded && other.root == root && other.fetchTime == fetchTime;
   }
 
   @override
-  int get hashCode => root.hashCode;
+  int get hashCode => root.hashCode ^ fetchTime.hashCode;
 }
 
 class NatalStateError extends NatalState {
@@ -42,24 +43,30 @@ class NatalCubit extends Cubit<NatalState> {
 
   void loadSampleChartData() async {
     final string = await rootBundle.loadString('assets/out.json');
-    emit(NatalStateLoaded(json.decode(string)));
+    emit(NatalStateLoaded(json.decode(string), DateTime.now()));
   }
 
-  // ../natal?date=1984/01/01&time=22:45&gmt=+03:00&city_lat=41.01&city_lon=28.58
-  Future<void> fetchChartData(birthDate, birthTime, gmt, lat, lon) async {
-    var uri = Uri.https('backend-lnrbdzx7zq-lm.a.run.app', 'natal', {
+  // ../natal?date=1984/01/01&time=22:45&gmt=+03:00&city_lat=41.01&city_lon=28.58&steps=24&step_minutes=60
+  Future<void> fetchChartData(DateTime currentDateTime, String birthDate, String birthTime, String gmt, String lat, String lon) async {
+    var uri = Uri.http('127.0.0.1:8080', 'natal', {
       'date': birthDate,
       'time': birthTime,
       'gmt': gmt,
       'city_lat': lat,
-      'city_lon': lon
+      'city_lon': lon,
+      'steps': '24',
+      'step_minutes': '60',
     });
 
-    var response = await http.get(uri);
-    if (response.statusCode == 200) {
-      emit(NatalStateLoaded(jsonDecode(response.body)));
-    } else {
-      emit(NatalStateError('Can not fetch'));
+    try {
+      var response = await http.get(uri);
+      if (response.statusCode == 200) {
+        emit(NatalStateLoaded(jsonDecode(response.body), currentDateTime));
+      } else {
+        emit(NatalStateError('Can not fetch. Server responded with: ${response.statusCode}'));
+      }
+    } catch (e) {
+      emit(NatalStateError('Can not fetch. Error: $e'));
     }
   }
 }
