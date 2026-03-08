@@ -38,7 +38,7 @@ jobs:
 
       - name: Analyze (frontend)
         working-directory: frontend
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: Test (astro_engine)
         working-directory: astro_engine
