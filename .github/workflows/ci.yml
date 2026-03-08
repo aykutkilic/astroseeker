@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  FLUTTER_VERSION: "3.32.0"
+  FLUTTER_CHANNEL: "stable"
+
+jobs:
+  analyze:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+
+      - name: Install dependencies (astro_engine)
+        working-directory: astro_engine
+        run: dart pub get
+
+      - name: Install dependencies (frontend)
+        working-directory: frontend
+        run: flutter pub get
+
+      - name: Analyze (astro_engine)
+        working-directory: astro_engine
+        run: dart analyze
+
+      - name: Analyze (frontend)
+        working-directory: frontend
+        run: flutter analyze
+
+      - name: Test (astro_engine)
+        working-directory: astro_engine
+        run: dart test
+
+      - name: Check formatting (astro_engine)
+        working-directory: astro_engine
+        run: dart format --set-exit-if-changed lib
+
+      - name: Check formatting (frontend)
+        working-directory: frontend
+        run: dart format --set-exit-if-changed lib
