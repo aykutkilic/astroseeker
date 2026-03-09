@@ -173,7 +173,7 @@ jobs:
     name: iOS IPA
     needs: version
     if: ${{ inputs.build_ios }}
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - uses: actions/checkout@v4
